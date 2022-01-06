@@ -162,7 +162,8 @@ defmodule Elm do
   """
   def run(profile, extra_args) when is_atom(profile) and is_list(extra_args) do
     config = config_for!(profile)
-    args = config[:args] || []
+
+    args = extra_args -- (config[:args] || [])
 
     opts = [
       cd: config[:cd] || File.cwd!(),
@@ -171,9 +172,27 @@ defmodule Elm do
       stderr_to_stdout: true
     ]
 
-    bin_path()
-    |> System.cmd(args ++ extra_args, opts)
+    {path, args} = elm(args)
+
+    path
+    |> System.cmd(args, opts)
     |> elem(1)
+  end
+
+  def elm(args) do
+    cmd = bin_path()
+
+    if "--watch" in args do
+      args = [bin_path()] ++ args
+      {script_path(), args -- ["--watch"]}
+    else
+      {cmd, args}
+    end
+  end
+
+  @doc false
+  def script_path() do
+    Path.join(:code.priv_dir(:elm), "elm.bash")
   end
 
   @doc """
