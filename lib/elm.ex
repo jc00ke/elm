@@ -115,7 +115,7 @@ defmodule Elm do
                 --optimize
                 --output=../priv/static/assets/elm.js
               ),
-              cd: Path.expand("../assets", __DIR__)
+              cd: Path.expand("../assets/elm", __DIR__)
             ]
       """
   end
@@ -153,6 +153,24 @@ defmodule Elm do
     end
   end
 
+  defp prepare_args(args, config) do
+    src_files = args[:src_files] || config[:src_files] || "src/*.elm"
+    output = config[:output] || args[:output] || raise "must set :output option"
+    output = "--output=#{output}"
+
+    if args[:optimize] && args[:debug],
+      do: raise("can't optimize & debug at the same time")
+
+    debug_or_optimize_flag =
+      cond do
+        args[:optimize] -> "--optimize"
+        args[:debug] -> "--debug"
+        true -> nil
+      end
+
+    [src_files, debug_or_optimize_flag, output]
+  end
+
   @doc """
   Runs the given command with `args`.
 
@@ -163,7 +181,10 @@ defmodule Elm do
   def run(profile, extra_args) when is_atom(profile) and is_list(extra_args) do
     config = config_for!(profile)
 
-    args = extra_args -- (config[:args] || [])
+    args =
+      (extra_args -- (config[:args] || []))
+      |> prepare_args(config)
+      |> Enum.join(" ")
 
     opts = [
       cd: config[:cd] || File.cwd!(),
@@ -172,22 +193,9 @@ defmodule Elm do
       stderr_to_stdout: true
     ]
 
-    {path, args} = elm(args)
-
-    path
-    |> System.cmd(args, opts)
+    "#{bin_path()} make #{args}"
+    |> System.shell(opts)
     |> elem(1)
-  end
-
-  def elm(args) do
-    cmd = bin_path()
-
-    if "--watch" in args do
-      args = [bin_path()] ++ args
-      {script_path(), args -- ["--watch"]}
-    else
-      {cmd, args}
-    end
   end
 
   @doc false
